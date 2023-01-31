@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 
 # global variable to store context
-davinci_context = ""
+user_management = {}
 
 
 # function to generate response from the OpenAI API
@@ -35,43 +35,48 @@ def generate_response(prompt):
 # async function to handle /start command and send a greeting message
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Hola! soy Davinci un bot creado por "
-                                                                          "@ Deiker_DiazP, en que puedo ayudarte?")
+                                                                          "@Deiker_DiazP, en que puedo ayudarte?")
 
 
 # async function to handle /restart command and reset the context
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global davinci_context
-    davinci_context = ""
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Iniciado Nuevo contexto")
+    global user_management
+    user_management[update.message.chat_id] = ""
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Iniciado nuevo contexto")
 
 
 # async function to handle incoming messages and send response
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global davinci_context
+    global user_management
     time = datetime.datetime.now()
 
-    print(update.message.text)
+    print(f"{update.message.chat_id} {update.message.text}")
 
     # add user's message to the context
-    davinci_context += "Yo: " + update.message.text + " "
+    try:
+        user_management[update.message.chat_id] += "Yo: " + update.message.text + " "
+    except KeyError:
+        user_management[update.message.chat_id] = ""
+        user_management[update.message.chat_id] += "Yo: " + update.message.text + " "
 
     # write user's message to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
-        user_infor.writelines(f"{time.strftime('%x %X')} Yo: {update.message.text}\n")
+        user_infor.writelines(f"{time.strftime('%x %X')} {update.message.chat_id}: {update.message.text}\n")
 
     # generate response from OpenAI API
-    bot_resp = generate_response(davinci_context)
+    bot_resp = generate_response(user_management[update.message.chat_id])
 
     # write bot's response to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
         user_infor.writelines(f"{time.strftime('%x %X')} text-davinci-003: {bot_resp}\n")
 
     # add bot's response to the context
-    davinci_context += "text-davinci-003: " + bot_resp + " "
+    user_management[update.message.chat_id] += "text-davinci-003: " + bot_resp + " "
 
     # clean up bot's response
     bot_resp = bot_resp.replace("text-davinci-003:", "")
     bot_resp = bot_resp.replace("Text-davinci-003:", "")
+    bot_resp = bot_resp.replace("Respuesta:", "")
 
     # send the bot's response as a message
     await context.bot.send_message(chat_id=update.effective_chat.id, text=bot_resp)
