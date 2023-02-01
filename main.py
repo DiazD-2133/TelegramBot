@@ -50,7 +50,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global user_management
     time = datetime.datetime.now()
 
-    print(f"{update.message.chat_id} {update.message.text}")
+    print(f"{time.strftime('%x %X')} [{update.message.chat_id}]: {update.message.text}")
 
     # add user's message to the context
     try:
@@ -61,14 +61,14 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # write user's message to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
-        user_infor.writelines(f"{time.strftime('%x %X')} {update.message.chat_id}: {update.message.text}\n")
+        user_infor.writelines(f"{update.message.chat_id}: {update.message.text}\n")
 
     # generate response from OpenAI API
     bot_resp = generate_response(user_management[update.message.chat_id])
 
     # write bot's response to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
-        user_infor.writelines(f"{time.strftime('%x %X')} text-davinci-003: {bot_resp}\n")
+        user_infor.writelines(f"text-davinci-003: {bot_resp}\n")
 
     # add bot's response to the context
     user_management[update.message.chat_id] += "text-davinci-003: " + bot_resp + " "
