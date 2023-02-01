@@ -34,6 +34,7 @@ def generate_response(prompt):
 
 # async function to handle /start command and send a greeting message
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_management[update.message.chat_id] = ""
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Hola! soy Davinci un bot creado por "
                                                                           "@Deiker_DiazP, en que puedo ayudarte?")
 
