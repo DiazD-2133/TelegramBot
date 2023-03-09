@@ -11,76 +11,95 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# global variable to store context
-user_management = {}
+# dictionary to store user context
+telegram_users = {}
+# dictionary to store user role and message
+user_management = {"role": "user", "content": ""}
+# dictionary to store assistant role and message
+messages = [{"role": "system", "content": "You are a helpful assistant."}]
+# dictionary to store assistant role and message
+assistant_management = {"role": "assistant", "content": ""}
 
 
 # function to generate response from the OpenAI API
 def generate_response(prompt):
+    # set up OpenAI API key
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    completions = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
+    # generate response from OpenAI API
+    completions = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=prompt,
         max_tokens=1024,
         n=1,
         stop=None,
-        temperature=0.5,
+        temperature=0.8,
     )
 
-    response = completions.choices[0].text
+    response = completions.choices[0]["message"]
     return response
 
 
 # async function to handle /start command and send a greeting message
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_management[update.message.chat_id] = ""
+    global telegram_users, user_management, messages
+    # set initial context for user
+    telegram_users[update.message.chat_id] = [messages, user_management]
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Hola! soy Davinci un bot creado por "
                                                                           "@Deiker_DiazP, en que puedo ayudarte?")
 
 
 # async function to handle /restart command and reset the context
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_management
-    user_management[update.message.chat_id] = ""
+    global messages
+
+    # reset context for user
+    telegram_users[update.message.chat_id][0] = [{"role": "system", "content": "You are a helpful assistant."}]
+    # reset user's message
+    telegram_users[update.message.chat_id][1]["content"] = ""
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Iniciado nuevo contexto")
 
 
 # async function to handle incoming messages and send response
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_management
+    global telegram_users, messages, user_management, assistant_management
     time = datetime.datetime.now()
 
     print(f"{time.strftime('%x %X')} [{update.message.chat_id}]: {update.message.text}")
 
-    # add user's message to the context
     try:
-        user_management[update.message.chat_id] += "Yo: " + update.message.text + " "
+        # store user's message in context
+        telegram_users[update.message.chat_id][1]["content"] = update.message.text
     except KeyError:
-        user_management[update.message.chat_id] = ""
-        user_management[update.message.chat_id] += "Yo: " + update.message.text + " "
+        # set initial context for user if not found
+        telegram_users[update.message.chat_id] = [messages, user_management]
+        telegram_users[update.message.chat_id][1]["content"] = update.message.text
+
+    # append user's message to context
+    telegram_users[update.message.chat_id][0].append(telegram_users[update.message.chat_id][1])
 
     # write user's message to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
         user_infor.writelines(f"{update.message.chat_id}: {update.message.text}\n")
 
     # generate response from OpenAI API
-    bot_resp = generate_response(user_management[update.message.chat_id])
+    bot_resp = generate_response(telegram_users[update.message.chat_id][0])
 
     # write bot's response to file
     with open("user.txt", mode="a", encoding='utf-8') as user_infor:
-        user_infor.writelines(f"text-davinci-003: {bot_resp}\n")
+        user_infor.writelines(f"text-davinci-003: {bot_resp['content']}\n")
 
-    # add bot's response to the context
-    user_management[update.message.chat_id] += "text-davinci-003: " + bot_resp + " "
+    assistant_management["content"] = bot_resp['content']
+    # append response to context
+    telegram_users[update.message.chat_id][0].append(assistant_management)
+    print(telegram_users[update.message.chat_id][0])
 
-    # clean up bot's response
-    bot_resp = bot_resp.replace("text-davinci-003:", "")
-    bot_resp = bot_resp.replace("Text-davinci-003:", "")
-    bot_resp = bot_resp.replace("Respuesta:", "")
+    # reset user's input after generating a response
+    telegram_users[update.message.chat_id][1]["content"] = ""
 
     # send the bot's response as a message
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=bot_resp)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=bot_resp["content"])
 
 
 # main function
